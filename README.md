@@ -1,8 +1,8 @@
-# ARTION: Edge-Connected Spatiotemporal Graph Neural Framework for Dynamic Train Scheduling & Track Switch Actuation
+# ARTON: Edge-Connected Spatiotemporal Graph Neural Framework for Dynamic Train Scheduling & Track Switch Actuation
 
 ## 🚂 Overview
 
-ARTION (Edge-Connected Spatiotemporal Graph Neural Framework for Dynamic Train Scheduling & Track Switch Actuation) is a comprehensive AI-powered railway optimization system that enables real-time, autonomous train scheduling and track switch control. The system leverages cutting-edge graph neural networks and reinforcement learning to predict delays and optimize routing decisions, communicating with physical railway hardware through low-latency WebSocket connections.
+ARTON (Edge-Connected Spatiotemporal Graph Neural Framework for Dynamic Train Scheduling & Track Switch Actuation) is a comprehensive AI-powered railway optimization system that enables real-time, autonomous train scheduling and track switch control. The system leverages cutting-edge graph neural networks and reinforcement learning to predict delays and optimize routing decisions, communicating with physical railway hardware through low-latency WebSocket connections.
 
 ## 🔑 Key Features
 
@@ -33,7 +33,7 @@ ARTION (Edge-Connected Spatiotemporal Graph Neural Framework for Dynamic Train S
 
 ```
 ┌─────────────────────┐    WebSocket    ┌─────────────────────┐
-│   ARTION SOFTWARE   │◄◄◄◄◄◄◄◄◄◄◄◄◄◄◄◄│   HARDWARE LAYER    │
+│   ARTON SOFTWARE   │◄◄◄◄◄◄◄◄◄◄◄◄◄◄◄◄│   HARDWARE LAYER    │
 │                     │                 │                     │
 │  ┌─────────────┐    │                 │  ┌──────────────┐   │
 │  │ GraphSAGE   │◄──┤                 │  │ Track Switches │   │
@@ -155,9 +155,9 @@ Switch 2: NORMAL -> REVERSE
 📊 Sent telemetry: 4 switches, 4 sensors, 3 signals
 ```
 
-### ARTION System Output
+### ARTON System Output
 ```
-🚂 Initializing ARTION system...
+🚂 Initializing ARTON system...
 ✅ Initialized SpatiotemporalGraphSAGE: 10->64->5
 ✅ Initialized DQNRoutingAgent: state=20, action=10
 🚂 Starting prediction loop...
@@ -180,7 +180,7 @@ Tests verify:
 
 ## 🔄 Transitioning to Real Hardware
 
-ARTION is designed for seamless transition from simulation to deployment:
+ARTON is designed for seamless transition from simulation to deployment:
 
 1. **Ensure Compatibility**: ESP32 firmware must support WebSocket client connections
 2. **Network Configuration**: Connect ESP32 devices to same network as ARTION server
@@ -264,7 +264,7 @@ See `requirements.txt` for exact versions:
 
 ## 👥 Contributing
 
-ARTION welcomes contributions from the railway AI and edge computing communities:
+ARTON welcomes contributions from the railway AI and edge computing communities:
 
 1. Fork the repository
 2. Create a feature branch: `git checkout -b feature/amazing-feature`
