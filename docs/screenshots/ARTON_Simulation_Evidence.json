@@ -1,0 +1,184 @@
+{
+  "status": "LIVE",
+  "uptime_s": 20.5,
+  "connections": 1,
+  "loop_count": 51,
+  "last_cycle_ms": 2.576916000180063,
+  "last_action": {
+    "action_id": 5,
+    "commands": [
+      {
+        "type": "switch_control",
+        "switch_id": 2,
+        "position": "REVERSE"
+      }
+    ],
+    "description": "Set switch 2 to REVERSE"
+  },
+  "prediction_summary": {
+    "mean": 0.007537273224443197,
+    "min": -0.13531340658664703,
+    "max": 0.1605042815208435,
+    "nodes": 20,
+    "horizon": 5
+  },
+  "recent_events": [
+    {
+      "time": "15:36:49",
+      "message": "switch_control broadcast to 1 simulator connection(s)",
+      "level": "OK"
+    },
+    {
+      "time": "15:36:49",
+      "message": "DQN action 5: Set switch 2 to REVERSE",
+      "level": "INFO"
+    },
+    {
+      "time": "15:36:49",
+      "message": "switch_control broadcast to 1 simulator connection(s)",
+      "level": "OK"
+    },
+    {
+      "time": "15:36:49",
+      "message": "DQN action 5: Set switch 2 to REVERSE",
+      "level": "INFO"
+    },
+    {
+      "time": "15:36:48",
+      "message": "switch_control broadcast to 1 simulator connection(s)",
+      "level": "OK"
+    },
+    {
+      "time": "15:36:48",
+      "message": "DQN action 5: Set switch 2 to REVERSE",
+      "level": "INFO"
+    },
+    {
+      "time": "15:36:48",
+      "message": "switch_control broadcast to 1 simulator connection(s)",
+      "level": "OK"
+    },
+    {
+      "time": "15:36:48",
+      "message": "DQN action 5: Set switch 2 to REVERSE",
+      "level": "INFO"
+    },
+    {
+      "time": "15:36:47",
+      "message": "switch_control broadcast to 1 simulator connection(s)",
+      "level": "OK"
+    },
+    {
+      "time": "15:36:47",
+      "message": "DQN action 5: Set switch 2 to REVERSE",
+      "level": "INFO"
+    },
+    {
+      "time": "15:36:47",
+      "message": "switch_control broadcast to 1 simulator connection(s)",
+      "level": "OK"
+    },
+    {
+      "time": "15:36:47",
+      "message": "DQN action 5: Set switch 2 to REVERSE",
+      "level": "INFO"
+    },
+    {
+      "time": "15:36:47",
+      "message": "switch_control broadcast to 1 simulator connection(s)",
+      "level": "OK"
+    },
+    {
+      "time": "15:36:47",
+      "message": "DQN action 5: Set switch 2 to REVERSE",
+      "level": "INFO"
+    },
+    {
+      "time": "15:36:46",
+      "message": "switch_control broadcast to 1 simulator connection(s)",
+      "level": "OK"
+    },
+    {
+      "time": "15:36:46",
+      "message": "DQN action 5: Set switch 2 to REVERSE",
+      "level": "INFO"
+    }
+  ],
+  "mode": "SIMULATOR",
+  "model_note": "Synthetic features \u00b7 randomly initialized model weights",
+  "switches": [
+    {
+      "switch_id": 1,
+      "position": "NORMAL",
+      "powered": true,
+      "last_move": 8.41
+    },
+    {
+      "switch_id": 2,
+      "position": "REVERSE",
+      "powered": true,
+      "last_move": 0.04
+    },
+    {
+      "switch_id": 3,
+      "position": "NORMAL",
+      "powered": true,
+      "last_move": 19.06
+    },
+    {
+      "switch_id": 4,
+      "position": "NORMAL",
+      "powered": true,
+      "last_move": 12.01
+    }
+  ],
+  "sensors": [
+    {
+      "sensor_id": 1,
+      "track_section": "SECTION_A",
+      "occupied": true,
+      "actual_occupied": true,
+      "occupancy_duration": 0.04
+    },
+    {
+      "sensor_id": 2,
+      "track_section": "SECTION_B",
+      "occupied": true,
+      "actual_occupied": true,
+      "occupancy_duration": 0.04
+    },
+    {
+      "sensor_id": 3,
+      "track_section": "SECTION_C",
+      "occupied": false,
+      "actual_occupied": false,
+      "occupancy_duration": 0.0
+    },
+    {
+      "sensor_id": 4,
+      "track_section": "SECTION_D",
+      "occupied": true,
+      "actual_occupied": true,
+      "occupancy_duration": 0.4
+    }
+  ],
+  "signals": [
+    {
+      "signal_id": 1,
+      "aspect": "GREEN",
+      "time_since_change": 19.06
+    },
+    {
+      "signal_id": 2,
+      "aspect": "GREEN",
+      "time_since_change": 19.06
+    },
+    {
+      "signal_id": 3,
+      "aspect": "GREEN",
+      "time_since_change": 19.06
+    }
+  ],
+  "commands_received": 50,
+  "telemetry_timestamp": 1793288209.6050127
+}
