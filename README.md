@@ -1,295 +1,181 @@
-# ARTON: Edge-Connected Spatiotemporal Graph Neural Framework for Dynamic Train Scheduling & Track Switch Actuation
+# ARTON — Autonomous Railway Transit Optimization Network
 
-## 🚂 Overview
+**Version:** `1.1.0` · **Status:** Academic prototype / software-only simulation · **License:** check the repository `LICENSE` file before redistribution
 
-ARTON (Edge-Connected Spatiotemporal Graph Neural Framework for Dynamic Train Scheduling & Track Switch Actuation) is a comprehensive AI-powered railway optimization system that enables real-time, autonomous train scheduling and track switch control. The system leverages cutting-edge graph neural networks and reinforcement learning to predict delays and optimize routing decisions, communicating with physical railway hardware through low-latency WebSocket connections.
+ARTON is a final-year project prototype exploring AI-assisted railway scheduling and trackside control. It combines a GraphSAGE-style graph model for multi-step output prediction, a Deep Q-Network (DQN) policy, a FastAPI/WebSocket communication layer, and a software simulator for ESP32-like trackside components.
 
-## 🔑 Key Features
+> **Hardware is not required to run the demo.** The default simulation uses synthetic network features and randomly initialized model weights. It is intended for software integration demonstrations only—not safety-critical or live railway control.
 
-### 1. **Spatiotemporal GraphSAGE Neural Network**
-- Predicts delay propagation across railway network topology
-- Takes into account station connections, time-of-day, weather, and historical patterns
-- Outputs multi-step delay forecasts for proactive intervention
+## What's new in v1.1.0
 
-### 2. **Deep Q-Network (DQN) Routing Agent**
-- Learns optimal routing policies through reinforcement learning
-- Combines current network state with delay predictions for decision-making
-- Uses experience replay and epsilon-greedy exploration for stable learning
-- Outputs actionable commands for track switches and signals
+- Added a pure-PyTorch GraphSAGE fallback so simulation works without PyTorch Geometric installed.
+- Normalized graph edges to bidirectional message-passing edges when using NetworkX graphs.
+- Standardized DQN actions to the simulator's supported `switch_control` and `signal_control` command schema.
+- Connected the coordinator's prediction loop to the local WebSocket simulator and surfaced live status at the dashboard/API.
+- Unified demo startup so the timed demo runs one server and one simulator rather than launching duplicate processes.
+- Added simulator control/integration tests and live simulation screenshots.
+- Added clearer caveats about synthetic inputs, untrained model weights, and non-certified performance.
 
-### 3. **FastAPI WebSocket Server**
-- Provides real-time bidirectional communication with hardware (ESP32 controllers)
-- Low-latency command transmission (<100ms cycle times)
-- Telemetry reception from sensors and actuators
-- Background loops for continuous optimization
+## Screenshots from a live local simulation
 
-### 4. **Hardware Abstraction Layer**
-- Clean separation between software logic and hardware interface
-- Simulator enables safe testing and development
-- Transparent transition to real ESP32 hardware
-- Standardized command/telemetry format
+The following captures were produced from a running local simulation (not mock UI data). They show an observed sample run; values can differ on each run.
 
-## 🏗️ System Architecture
+### Control-room dashboard
 
-```
-┌─────────────────────┐    WebSocket    ┌─────────────────────┐
-│   ARTON SOFTWARE   │◄◄◄◄◄◄◄◄◄◄◄◄◄◄◄◄│   HARDWARE LAYER    │
-│                     │                 │                     │
-│  ┌─────────────┐    │                 │  ┌──────────────┐   │
-│  │ GraphSAGE   │◄──┤                 │  │ Track Switches │   │
-│  │ (Delay Pred)│    │                 │  │ (NORMAL/REV) │   │
-│  └─────┬───────┘    │                 │  └──────┬───────┘   │
-│        │            │                 │         │           │
-│  ┌─────▼───────┐    │                 │  ┌──────▼───────┐   │
-│  │   DQN Agent │    │                 │  │ Occupancy    │   │
-│  │ (Routing)   │    │                 │  │ Sensors      │   │
-│  └─────┬───────┘    │                 │  └──────┬───────┘   │
-│        │            │                 │         │           │
-│  ┌─────▼───────┐    │                 │  ┌──────▼───────┐   │
-│  │ WebSocket   │────┼─────────────────┼─────────│ Signals   │   │
-│  │ Server      │    │                 │  │ (G/Y/R)      │   │
-│  └─────────────┘    │                 │  └──────────────┘   │
-└─────────────────────┘                 └─────────────────────┘
-          │                                       │
-          ▼                                       ▼
-    [Prediction Loop]                   [Real-time I/O]
-      (<100ms cycle)                       (WebSocket)
-```
+![ARTON live simulation dashboard](docs/screenshots/ARTON_Live_Simulation_Dashboard.png)
 
-## 📁 Project Structure
+### Runtime log and simulator command exchange
 
-```
-software/
-├── graphsage_model.py      # Spatiotemporal GraphSAGE for delay prediction
-├── dqn_agent.py           # Deep Q-Network for routing optimization
-├── fastapi_server.py      # WebSocket server for hardware communication
-├── main.py                # System coordinator (supports --simulator flag)
-├── hardware_simulator.py  # ESP32 hardware simulator (4 switches, 4 sensors, 3 signals)
-├── demo_artion.py         # Automated demonstration script
-├── test_artion.py         # Comprehensive test suite
-├── requirements.txt       # Python dependencies
-├── README.md              # This file
-└── DEMO_INSTRUCTIONS.md   # Detailed demonstration guide
+![ARTON runtime log](docs/screenshots/ARTON_Runtime_Log_Capture.png)
+
+A structured snapshot from the same capture is also included at [`docs/screenshots/ARTON_Simulation_Evidence.json`](docs/screenshots/ARTON_Simulation_Evidence.json). Screenshots are evidence of a successful local integration run, not a benchmark or validation result.
+
+## Prerequisites
+
+### Required
+
+- **Python 3.10 or newer**. Python 3.11 or 3.12 is a good choice for broad scientific-library wheel compatibility; the v1.1.0 smoke run was executed with Python 3.13.5.
+- **pip** (comes with standard Python installers).
+- **NetworkX** to construct the synthetic railway graph.
+- **NumPy** and **PyTorch** for model inputs and inference.
+- **FastAPI**, **Uvicorn**, and **WebSockets** for the local API and software-to-simulator link.
+- A browser to open the dashboard.
+
+No ESP32 board, sensors, railway equipment, GPU, database, cloud credentials, or internet connection are required after the Python packages have been installed.
+
+### Optional
+
+- **PyTorch Geometric**: if installed with a version compatible with your Python and PyTorch builds, ARTON uses its `SAGEConv` implementation. If absent, ARTON uses a small pure-PyTorch GraphSAGE fallback.
+- A CUDA-enabled PyTorch build is optional; CPU mode is sufficient for the demonstration.
+
+## Quick start (no hardware)
+
+Commands below assume the repository has been cloned and the current directory is the project root.
+
+### 1. Create and activate a virtual environment
+
+**Windows PowerShell**
+
+```powershell
+py -3 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
 ```
 
-## ⚙️ Technical Specifications
+**Linux / macOS**
 
-### Real-time Performance
-- **Cycle Time**: Designed for <100ms updates (10Hz)
-- **Communication**: Async/await for non-blocking operations
-- **Serialization**: Efficient JSON over WebSocket
-- **Concurrency**: Parallel execution of prediction loop and WebSocket server
-
-### Hardware Simulation Features
-- **4 Track Switches**: NORMAL/REVERSE positions with realistic timing
-- **4 Occupancy Sensors**: Train presence detection with 1% failure rate simulation
-- **3 Railway Signals**: GREEN/YELLOW/RED aspects with timing
-- **Smart Traffic Flow**: Switch position influences train movement simulation
-- **Performance Tracking**: Command counts, uptime, and statistics
-
-### ARTION Software Features
-- **GraphSAGE Input**: 10 features per node (time, day, weather, etc.)
-- **GraphSAGE Output**: 5-step delay predictions
-- **DQN State**: 20-dimensional (network state + delay predictions)
-- **DQN Actions**: 10 possible routing decisions
-- **Learning Rate**: 0.001 for stable convergence
-- **Experience Replay**: For stable learning
-
-## 🔧 Installation & Setup
-
-### Prerequisites
-- Python 3.8+
-- pip package manager
-- Git (for cloning repository)
-
-### Installation Steps
 ```bash
-# Clone the repository
-git clone https://github.com/JirayaD/artion-software.git
-cd artion-software/software
-
-# Install dependencies
-pip3 install -r requirements.txt
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
 ```
 
-## 🚀 Usage
+### 2. Install dependencies
 
-### Option 1: Automated Demonstration (Recommended)
 ```bash
-cd software
-python3 demo_artion.py
+python -m pip install -r arton_project/software/requirements.txt
 ```
-This starts both the hardware simulator and ARTION system, runs them for 30 seconds to show interaction, then cleans up and displays final output.
 
-### Option 2: Manual Control
+The requirements file contains only the runtime dependencies required for the hardware-free demo. PyTorch may take some time to download. For a GPU-specific build, choose the correct PyTorch command for your platform from the official PyTorch installation selector, then install the remaining dependencies from `requirements.txt`.
+
+### 3. Start the live simulation
+
 ```bash
-cd software
-
-# Terminal 1: Start hardware simulator
-python3 hardware_simulator.py
-
-# Terminal 2: Start ARTION system (with simulator)
-python3 main.py --simulator
+cd arton_project/software
+python main.py --simulator
 ```
 
-### Option 3: Run Tests
+Open the dashboard in a browser:
+
+- Dashboard: <http://127.0.0.1:8000/dashboard>
+- API status: <http://127.0.0.1:8000/api/state>
+- Health/root: <http://127.0.0.1:8000/>
+
+The dashboard reports prediction-loop activity, the last DQN command, simulated switch positions, occupancy sensor state, signal aspects, and recent events. Keep the terminal running while viewing the dashboard. Press **Ctrl+C** to stop the simulation.
+
+### 4. Run an automatic timed demo
+
+From `arton_project/software`:
+
 ```bash
-cd software
-python3 test_artion.py
+python demo_artion.py --duration 30
 ```
 
-### Option 4: Connect to Real Hardware
+This starts the API, prediction loop and in-process hardware simulator together, then shuts them down after 30 seconds. It avoids starting duplicate simulator processes.
+
+You can also run the coordinator directly for a bounded simulation:
+
 ```bash
-cd software
-python3 main.py  # Without --simulator flag
-```
-Ensure ESP32 devices are on the same network running compatible firmware.
-
-## 📊 What You'll See in the Demo
-
-### Hardware Simulator Output
-```
-🔧 Connected to hardware server at ws://localhost:8000/ws/hardware
-📥 Received command #{1}: {'type': 'switch_control', 'switch_id': 2, 'position': 'REVERSE'}
-Switch 2: NORMAL -> REVERSE
-📊 Sent telemetry: 4 switches, 4 sensors, 3 signals
+python main.py --simulator --duration 10
 ```
 
-### ARTON System Output
-```
-🚂 Initializing ARTON system...
-✅ Initialized SpatiotemporalGraphSAGE: 10->64->5
-✅ Initialized DQNRoutingAgent: state=20, action=10
-🚂 Starting prediction loop...
-📤 Sending hardware commands: {'action_id': 3, 'commands': [{'target': 'TRACK_4', 'action': 'SET_POSITION_B', ...}], 'description': 'Routing action 3'}
-⚡ Executing action: Set track 4 to loop line
-```
+### 5. Run tests
 
-## 🧪 Testing
+From `arton_project/software`:
 
-Run the comprehensive test suite:
 ```bash
-python3 test_artion.py
+python test_artion.py
 ```
 
-Tests verify:
-- GraphSAGE model forward pass and output shapes
-- DQN agent action selection and learning
-- Component integration and WebSocket communication
-- Hardware simulator command processing and telemetry generation
+The test suite checks GraphSAGE output dimensions and finite values, DQN action selection and replay training, model-to-policy integration, simulator switch/signal commands, and telemetry component counts.
 
-## 🔄 Transitioning to Real Hardware
+## Software modules
 
-ARTON is designed for seamless transition from simulation to deployment:
+| File | Purpose |
+|---|---|
+| `arton_project/software/graphsage_model.py` | GraphSAGE-style network, optional PyTorch Geometric backend, pure-PyTorch fallback and synthetic feature generation |
+| `arton_project/software/dqn_agent.py` | DQN network, experience replay and simulator-compatible action-to-command mapping |
+| `arton_project/software/fastapi_server.py` | FastAPI endpoints, live dashboard, WebSocket connection manager and telemetry state |
+| `arton_project/software/hardware_simulator.py` | Software-only simulator for 4 track switches, 4 occupancy sensors and 3 railway signals |
+| `arton_project/software/main.py` | Coordinates prediction, routing, API startup, simulator lifecycle and graceful shutdown |
+| `arton_project/software/demo_artion.py` | Timed, single-process local demonstration |
+| `arton_project/software/test_artion.py` | Component and integration tests |
+| `arton_project/software/requirements.txt` | Minimal runtime dependencies |
+| `arton_project/software/DEMO_INSTRUCTIONS.md` | Run commands and troubleshooting notes |
 
-1. **Ensure Compatibility**: ESP32 firmware must support WebSocket client connections
-2. **Network Configuration**: Connect ESP32 devices to same network as ARTION server
-3. **Run Without Simulator**: `python3 main.py` (omits --simulator flag)
-4. **Hardware Connection**: WebSocket server accepts connections from real hardware
-5. **Zero Software Changes**: Same interface works for both simulator and real hardware
+## What the demo simulates
 
-### Required ESP32 Capabilities
-- WiFi connectivity
-- WebSocket client implementation
-- GPIO control for track switches and signals
-- Input reading from occupancy sensors
-- JSON parsing for command handling
+- A synthetic **5 × 4 NetworkX graph** containing 20 nodes.
+- **10 features per node** and a five-value output vector per node from the GraphSAGE-style model.
+- A **20-dimensional DQN state** and **10 discrete action IDs**.
+- Local WebSocket control messages and simulator telemetry.
+- **4 track switches**, **4 occupancy sensors**, and **3 railway signals**.
+- A dashboard and event log that update from the running process.
 
-## 📈 Performance Metrics
+## Troubleshooting
 
-| Metric | Value | Description |
-|--------|-------|-------------|
-| Prediction Cycle | <100ms | End-to-end delay prediction and routing |
-| WebSocket Latency | <10ms | Typical local network communication |
-| Model Inference | <5ms | GraphSAGE + DQN forward pass |
-| Memory Usage | ~50MB | Optimized for edge deployment |
-| Scalability | Horizontal | Multiple ARTION instances for network sections |
+| Symptom | What to check |
+|---|---|
+| `ModuleNotFoundError` | Activate the virtual environment, then run `python -m pip install -r requirements.txt` from the repository root. |
+| Port `8000` is already in use | Stop any previous ARTON process before starting another instance, or change the host/port in `main.py` and the simulator WebSocket URL together. |
+| Dashboard says server offline | Confirm `python main.py --simulator` is still running and open `http://127.0.0.1:8000/dashboard`. |
+| Simulator connection is missing | Check terminal logs for the WebSocket connection message; do not start a separate simulator when using `demo_artion.py`. |
+| PyTorch Geometric import fails | This package is optional for the demo; the pure-PyTorch GraphSAGE fallback should be used automatically. |
+| Prediction loop is slow on a laptop | Close other Python-heavy processes. `main.py` limits PyTorch CPU thread count for small-graph demo stability. Runtime numbers will vary by machine. |
+| PowerShell blocks venv activation | Use an approved local execution policy or run the venv's Python executable directly without activating it. |
 
-## 🔬 Research & Development
+## Versioning
 
-### Algorithms Implemented
-- **GraphSAGE**: Inductive representation learning on large graphs
-- **DQN**: Value-based deep reinforcement learning with experience replay
-- **Experience Replay**: Stabilizes learning by breaking temporal correlations
-- **Target Network**: Reduces oscillation in Q-learning
+ARTON follows **Semantic Versioning**: `MAJOR.MINOR.PATCH`.
 
-### Extensibility Points
-1. **GraphSAGE**: Modify `input_dim`, `hidden_dim`, `num_layers` for different feature sets
-2. **DQN**: Adjust `state_dim`, `action_dim`, `learning_rate` for different action spaces
-3. **Hardware Layer**: Replace `hardware_simulator.py` with actual ESP32 interface
-4. **Data Integration**: Enhance `get_railway_state()` in `main.py` for real data sources
+- **MAJOR** — incompatible API, model, or command-schema changes.
+- **MINOR** — backward-compatible features such as new dashboard panels or simulator capabilities.
+- **PATCH** — compatible bug fixes, test fixes and documentation corrections.
 
-## 📚 Dependencies
+The application API reports version `1.1.0`. The canonical project version is recorded in [`VERSION`](VERSION); the release history is in [`CHANGELOG.md`](CHANGELOG.md).
 
-See `requirements.txt` for exact versions:
-- **torch>=2.0.0**: PyTorch for deep learning
-- **torch-geometric>=2.0.0**: Graph neural network implementation
-- **networkx>=3.0**: Graph manipulation and generation
-- **stable-baselines3[extra]>=2.0.0**: Reinforcement learning algorithms
-- **gymnasium>=0.26.0**: Environment interface for RL
-- **fastapi>=0.100.0**: High-performance web framework
-- **uvicorn[standard]>=0.23.0**: ASGI server for FastAPI
-- **websockets>=12.0**: WebSocket client/server library
-- **pandas>=2.0.0**: Data manipulation and analysis
-- **numpy>=1.24.0**: Numerical computing
+## Scope, limitations and safety
 
-## 🛡️ Safety & Reliability
+- Inputs are synthetic; the current demo does not ingest live train timetables, station topology or real sensor telemetry.
+- The model weights are randomly initialized and **not trained or calibrated**. Output values are raw model outputs—not delay minutes or validated forecasts.
+- The DQN routing logic demonstrates a control loop; it is **not a trained or safety-validated railway policy**.
+- Observed local cycle times are diagnostic snapshots and are not a latency guarantee.
+- The project is not certified for safety-critical use. Real deployment would require validated railway data, training and held-out evaluation, interlocking constraints, fail-safe command validation, security review, hardware-in-the-loop testing, railway-domain review and applicable certification.
 
-### Fault Tolerance
-- Graceful shutdown handling for SIGINT/SIGTERM
-- Error recovery in prediction loop and WebSocket connections
-- Timeout mechanisms for hardware communication
-- Fallback behaviors for sensor failures
+## License
 
-### Validation
-- Input sanitization for all hardware commands
-- Range validation for switch positions and signal aspects
-- Connection health monitoring
-- Automatic reconnection logic
+Check the repository's `LICENSE` file before redistribution. If no `LICENSE` file is present in your checkout, confirm the project license with the maintainers before reusing or redistributing the code.
 
-## 📝 Future Enhancements
+## Repository
 
-### Planned Features
-1. **Multi-agent Coordination**: Multiple ARTION instances for network-wide optimization
-2. **Transfer Learning**: Pre-training on historical data before online adaptation
-3. **Uncertainty Quantification**: Confidence intervals for delay predictions
-4. **Multi-modal Input**: Integration with weather, event schedules, and maintenance data
-5. **Edge Optimization**: Model quantization and pruning for deployment on constrained hardware
-
-### Research Directions
-- Graph Attention Networks for adaptive neighbor weighting
-- Multi-objective RL balancing punctuality, energy efficiency, and capacity
-- Federated learning across multiple railway sections
-- Explainable AI for operator trust and intervention
-
-## 👥 Contributing
-
-ARTON welcomes contributions from the railway AI and edge computing communities:
-
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature/amazing-feature`
-3. Commit your changes: `git commit -m 'Add amazing feature'`
-4. Push to the branch: `git push origin feature/amazing-feature`
-5. Open a Pull Request
-
-Please ensure your code follows existing style conventions and includes appropriate tests.
-
-## 📄 License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## 🙏 Acknowledgments
-
-- PyTorch Geometric team for excellent GNN library
-- Stable-Baselines3 team for robust RL implementations
-- FastAPI and Uvicorn teams for high-performance web framework
-- Open-source hardware community for ESP32 inspiration
-- Railway engineers and operators for domain expertise
-
----
-
-**Last Updated**: June 2026  
-**Version**: 1.0.0  
-**Contact**: For questions or collaboration opportunities, please open an issue in this repository.
-
-*Enable autonomous railway optimization with ARTION - where AI meets the rails.*
+Source: <https://github.com/JirayaD/artion-software>

@@ -1,178 +1,136 @@
+"""Spatiotemporal GraphSAGE model used by ARTON.
+
+The module uses PyTorch Geometric when installed. A small, pure-PyTorch SAGEConv
+fallback is included so the simulator and component tests can run on machines where
+PyG wheels are unavailable (including CPU-only demo environments).
 """
-Spatiotemporal GraphSAGE Neural Engine for delay prediction
-"""
+from __future__ import annotations
+
+import logging
+from typing import Any
+
+import networkx as nx
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch_geometric.nn import SAGEConv, global_mean_pool
-import numpy as np
-import logging
+
+try:  # Optional dependency; the fallback keeps simulation hardware-independent.
+    from torch_geometric.nn import SAGEConv, global_mean_pool  # type: ignore
+    HAS_TORCH_GEOMETRIC = True
+except ImportError:  # pragma: no cover - exercised on installations without PyG
+    HAS_TORCH_GEOMETRIC = False
+
+    class SAGEConv(nn.Module):
+        """Mean-neighbour GraphSAGE convolution implemented with torch ops."""
+        def __init__(self, in_channels: int, out_channels: int):
+            super().__init__()
+            self.lin_neigh = nn.Linear(in_channels, out_channels, bias=False)
+            self.lin_root = nn.Linear(in_channels, out_channels, bias=True)
+
+        def forward(self, x: torch.Tensor, edge_index: torch.Tensor) -> torch.Tensor:
+            n = int(x.shape[0])
+            neighbour_sum = torch.zeros_like(x)
+            degree = torch.zeros((n, 1), dtype=x.dtype, device=x.device)
+            if edge_index.numel():
+                src, dst = edge_index[0].long(), edge_index[1].long()
+                neighbour_sum.index_add_(0, dst, x[src])
+                degree.index_add_(0, dst, torch.ones((dst.shape[0], 1), dtype=x.dtype, device=x.device))
+            neighbour_mean = neighbour_sum / degree.clamp_min(1.0)
+            return self.lin_neigh(neighbour_mean) + self.lin_root(x)
+
+    def global_mean_pool(x: torch.Tensor, batch: torch.Tensor) -> torch.Tensor:
+        if batch.numel() == 0:
+            return x.new_zeros((0, x.shape[-1]))
+        count = int(batch.max().item()) + 1
+        out = x.new_zeros((count, x.shape[-1]))
+        out.index_add_(0, batch.long(), x)
+        denom = torch.bincount(batch.long(), minlength=count).to(x.dtype).clamp_min(1).unsqueeze(1)
+        return out / denom
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
 class SpatiotemporalGraphSAGE(nn.Module):
-    def __init__(self, input_dim, hidden_dim, output_dim, num_layers=3, dropout=0.2):
-        """
-        Spatiotemporal GraphSAGE for predicting delay propagation
-        
-        Args:
-            input_dim: Number of input features per node
-            hidden_dim: Hidden layer dimension
-            output_dim: Number of output predictions (delay steps)
-            num_layers: Number of GraphSAGE layers
-            dropout: Dropout rate
-        """
-        super(SpatiotemporalGraphSAGE, self).__init__()
-        
+    """GraphSAGE stack with a multi-step delay prediction head."""
+    def __init__(self, input_dim: int, hidden_dim: int, output_dim: int,
+                 num_layers: int = 3, dropout: float = 0.2):
+        super().__init__()
+        if num_layers < 2:
+            raise ValueError("num_layers must be >= 2")
+        if min(input_dim, hidden_dim, output_dim) <= 0:
+            raise ValueError("Model dimensions must be positive")
         self.input_dim = input_dim
         self.hidden_dim = hidden_dim
         self.output_dim = output_dim
         self.num_layers = num_layers
         self.dropout = dropout
-        
-        # GraphSAGE layers
-        self.convs = nn.ModuleList()
-        self.convs.append(SAGEConv(input_dim, hidden_dim))
-        
-        for _ in range(num_layers - 2):
-            self.convs.append(SAGEConv(hidden_dim, hidden_dim))
-            
-        self.convs.append(SAGEConv(hidden_dim, hidden_dim))
-        
-        # Output layers for delay prediction
-        self.linear1 = nn.Linear(hidden_dim, hidden_dim // 2)
-        self.linear2 = nn.Linear(hidden_dim // 2, output_dim)
-        
+        self.convs = nn.ModuleList([SAGEConv(input_dim, hidden_dim)])
+        self.convs.extend(SAGEConv(hidden_dim, hidden_dim) for _ in range(num_layers - 1))
+        self.linear1 = nn.Linear(hidden_dim, max(1, hidden_dim // 2))
+        self.linear2 = nn.Linear(max(1, hidden_dim // 2), output_dim)
         self.dropout_layer = nn.Dropout(dropout)
-        
-        logger.info(f"Initialized SpatiotemporalGraphSAGE: {input_dim}->{hidden_dim}->{output_dim}")
-    
-    def forward(self, x, edge_index, batch=None):
-        """
-        Forward pass through the GraphSAGE network
-        
-        Args:
-            x: Node features [num_nodes, input_dim]
-            edge_index: Graph connectivity [2, num_edges]
-            batch: Batch vector for pooling (optional)
-        
-        Returns:
-            node_embeddings: [num_nodes, hidden_dim]
-            graph_embedding: [batch_size, hidden_dim] (if batch provided)
-            delay_predictions: [num_nodes, output_dim] or [batch_size, output_dim]
-        """
-        # GraphSAGE layers
+        logger.info("Initialized GraphSAGE %s->%s->%s (PyG=%s)", input_dim, hidden_dim, output_dim, HAS_TORCH_GEOMETRIC)
+
+    def forward(self, x: torch.Tensor, edge_index: torch.Tensor,
+                batch: torch.Tensor | None = None):
+        x = x.float()
         for i, conv in enumerate(self.convs):
             x = conv(x, edge_index)
-            if i < len(self.convs) - 1:  # No activation on last layer
+            if i < len(self.convs) - 1:
                 x = F.relu(x)
                 x = self.dropout_layer(x)
-        
         node_embeddings = x
-        
-        # Global pooling for graph-level representation (if needed)
         if batch is not None:
             graph_embedding = global_mean_pool(x, batch)
         else:
             graph_embedding = torch.mean(x, dim=0, keepdim=True)
-        
-        # Delay prediction head
-        x = F.relu(self.linear1(node_embeddings))
-        x = self.dropout_layer(x)
-        delay_predictions = self.linear2(x)
-        
-        return node_embeddings, graph_embedding, delay_predictions
-    
-    def predict_delay(self, graph_data, node_features):
-        """
-        Predict delay propagation for the railway network
-        
-        Args:
-            graph_data: NetworkX graph or PyTorch Geometric data
-            node_features: Node feature matrix [num_nodes, input_dim]
-        
-        Returns:
-            delay_predictions: [num_nodes, output_dim] delay predictions
-        """
+        predictions = self.linear2(self.dropout_layer(F.relu(self.linear1(node_embeddings))))
+        return node_embeddings, graph_embedding, predictions
+
+    def predict_delay(self, graph_data: Any, node_features: torch.Tensor | np.ndarray) -> np.ndarray:
+        """Return [num_nodes, output_dim] predictions as a CPU NumPy array."""
+        if isinstance(graph_data, nx.Graph):
+            nodes = list(graph_data.nodes())
+            node_to_idx = {node: idx for idx, node in enumerate(nodes)}
+            edges: list[tuple[int, int]] = []
+            for u, v in graph_data.edges():
+                ui, vi = node_to_idx[u], node_to_idx[v]
+                edges.extend(((ui, vi), (vi, ui)))  # GraphSAGE expects both directions.
+            edge_index = (torch.tensor(edges, dtype=torch.long).t().contiguous()
+                          if edges else torch.empty((2, 0), dtype=torch.long))
+        elif hasattr(graph_data, "edge_index"):
+            edge_index = graph_data.edge_index
+        else:
+            edge_index = graph_data[1]
+        device = next(self.parameters()).device
+        features = node_features if isinstance(node_features, torch.Tensor) else torch.as_tensor(node_features)
+        features = features.to(device=device, dtype=torch.float32)
+        edge_index = torch.as_tensor(edge_index, dtype=torch.long, device=device)
+        if features.ndim != 2 or features.shape[1] != self.input_dim:
+            raise ValueError(f"node_features must have shape [N, {self.input_dim}], got {tuple(features.shape)}")
         self.eval()
         with torch.no_grad():
-            # Convert NetworkX to edge_index if needed
-            if hasattr(graph_data, 'edges'):
-                import networkx as nx
-                # Create mapping from node to index for proper edge_index format
-                # Handle case where nodes are not integers (e.g., tuples)
-                node_to_idx = {node: idx for idx, node in enumerate(graph_data.nodes())}
-                edge_list = []
-                for u, v in graph_data.edges():
-                    edge_list.append([node_to_idx[u], node_to_idx[v]])
-                if edge_list:
-                    edge_index = torch.tensor(edge_list, dtype=torch.long).t().contiguous()
-                else:
-                    edge_index = torch.empty((2, 0), dtype=torch.long)
-            else:
-                edge_index = graph_data.edge_index if hasattr(graph_data, 'edge_index') else graph_data[1]
-            
-            # Ensure proper tensor types
-            if not isinstance(node_features, torch.Tensor):
-                node_features = torch.tensor(node_features, dtype=torch.float)
-            
-            if not isinstance(edge_index, torch.Tensor):
-                edge_index = torch.tensor(edge_index, dtype=torch.long)
-            
-            # Forward pass
-            _, _, delay_preds = self.forward(node_features, edge_index)
-            
-            return delay_preds.numpy()
+            _, _, delay_preds = self.forward(features, edge_index)
+        return delay_preds.detach().cpu().numpy()
 
-# Utility functions for graph processing
-def create_railway_graph_from_schedule(schedule_data):
-    """
-    Create a railway graph from schedule data
-    
-    Args:
-        schedule_data: DataFrame or dict containing train schedules
-    
-    Returns:
-        networkx.Graph: Railway network topology
-    """
-    import networkx as nx
-    import pandas as pd
-    
-    G = nx.Graph()
-    
-    # This is a simplified version - in practice, you'd parse actual route data
-    # For demonstration, creating a grid-like railway network
-    # In real implementation, this would come from geographic/track data
-    
-    # Add nodes (stations/junctions)
-    # Add edges (track connections)
-    # Add edge attributes (distance, capacity, etc.)
-    
-    return G
 
-def extract_spatiotemporal_features(schedule_data, current_time, horizon=5):
-    """
-    Extract spatiotemporal features for GraphSAGE input
-    
-    Args:
-        schedule_data: Current schedule and train positions
-        current_time: Current timestamp
-        horizon: Prediction horizon
-    
-    Returns:
-        node_features: Feature matrix for each node
-    """
-    # Features could include:
-    # - Time of day (cyclical encoding)
-    # - Day of week
-    # - Historical delay patterns
-    # - Current train density
-    # - Weather conditions
-    # - Special events
-    
-    # Placeholder implementation
-    num_nodes = 20  # Example: 20 stations/junctions
-    features = np.random.randn(num_nodes, 10)  # 10 features per node
-    
-    return features
+def create_railway_graph_from_schedule(schedule_data=None) -> nx.Graph:
+    """Create a small connected demo topology; replace with real track data later."""
+    return nx.grid_graph(dim=[5, 4])
+
+
+def extract_spatiotemporal_features(schedule_data=None, current_time=None, horizon: int = 5,
+                                    num_nodes: int = 20, seed: int | None = None) -> torch.Tensor:
+    """Generate clearly synthetic node features for a hardware-free demonstration."""
+    rng = np.random.default_rng(seed)
+    now = float(current_time if current_time is not None else 0.0)
+    feats = rng.normal(0, 0.15, size=(num_nodes, 10)).astype(np.float32)
+    feats[:, 0] = np.linspace(0.0, 1.0, num_nodes)  # normalized node index
+    feats[:, 1] = np.sin(now / 60.0)
+    feats[:, 2] = np.cos(now / 60.0)
+    feats[:, 3] = np.sin(now / 3600.0)
+    feats[:, 4] = np.cos(now / 3600.0)
+    feats[:, 5] = rng.uniform(0, 1, num_nodes)  # synthetic occupancy proxy
+    return torch.from_numpy(feats)

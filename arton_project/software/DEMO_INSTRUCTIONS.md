@@ -1,139 +1,63 @@
-# ARTION System Demonstration Instructions
+# ARTON software-only simulation: run guide
 
-## Overview
-This demo shows the complete ARTION system working with a hardware simulator that mimics ESP32 hardware. You'll see real-time interaction between:
+## Prerequisites
 
-1. **Hardware Simulator** - Mimics ESP32 with track switches, sensors, and signals
-2. **ARTION Software** - GraphSAGE delay prediction + DQN routing optimization + WebSocket server
-3. **Real-time Communication** - Commands flow from software to hardware, telemetry flows back
+- Python 3.10+ (Python 3.11/3.12 recommended; smoke-tested on Python 3.13.5).
+- `pip` and the packages listed in `requirements.txt`.
+- A browser for the local dashboard.
+- No physical ESP32 or other railway hardware is needed for simulator mode.
 
-## Files Created
-- `hardware_simulator.py` - ESP32 hardware simulator
-- `main.py` - Updated to support simulator mode (`--simulator` flag)
-- `demo_artion.py` - Automated demonstration script
-- `graphsage_model.py` - Spatiotemporal GraphSAGE for delay prediction
-- `dqn_agent.py` - Deep Q-Network for routing optimization
-- `fastapi_server.py` - WebSocket server for communication
-- `test_artion.py` - Test suite (all passing)
+## Install
 
-## How to Run the Demonstration
+From the repository root:
 
-### Option 1: Automated Demo (Recommended)
 ```bash
-cd ~/arton_project/software
-python3 demo_artion.py
+python -m venv .venv
+# Windows PowerShell: .\.venv\Scripts\Activate.ps1
+# Linux/macOS: source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -r arton_project/software/requirements.txt
 ```
-This will:
-1. Start the hardware simulator in the background
-2. Start the ARTION system in simulator mode
-3. Run both for 30 seconds so you can see the interaction
-4. Automatically clean up and show final output
 
-### Option 2: Manual Control
+## Run the live simulation
+
 ```bash
-cd ~/arton_project/software
-
-# In one terminal, start the hardware simulator:
-python3 hardware_simulator.py
-
-# In another terminal, start ARTION with simulator:
-python3 main.py --simulator
+cd arton_project/software
+python main.py --simulator
 ```
 
-### Option 3: Test Individual Components
+Open <http://127.0.0.1:8000/dashboard>. The machine runs a synthetic 20-node railway graph and a software-only simulator for 4 switches, 4 sensors and 3 signals. Stop with `Ctrl+C`.
+
+## Run a self-terminating demo
+
 ```bash
-cd ~/arton_project/software
-python3 test_artion.py  # Run all tests
+python demo_artion.py --duration 30
 ```
 
-## What You'll See in the Demo
+This launches one in-process simulator and shuts down after the specified number of seconds.
 
-### Hardware Simulator Output:
-```
-🔧 Connected to hardware server at ws://localhost:8000/ws/hardware
-📥 Received command #{1}: {'type': 'switch_control', 'switch_id': 2, 'position': 'REVERSE'}
-Switch 2: NORMAL -> REVERSE
-📊 Sent telemetry: 4 switches, 4 sensors, 3 signals
+## Run tests
+
+```bash
+python test_artion.py
 ```
 
-### ARTION System Output:
-```
-🚂 Initializing ARTION system...
-✅ Initialized SpatiotemporalGraphSAGE: 10->64->5
-✅ Initialized DQNRoutingAgent: state=20, action=10
-🚂 Starting prediction loop...
-📤 Sending hardware commands: {'action_id': 3, 'commands': [{'target': 'TRACK_4', 'action': 'SET_POSITION_B', ...}], 'description': 'Routing action 3'}
-⚡ Executing action: Set track 4 to loop line
-```
+The current component suite checks GraphSAGE prediction shape/finite values, DQN action selection and replay, end-to-end prediction-to-command mapping, simulator switch/signal control and telemetry counts.
 
-### Key Interactions to Watch For:
-1. **Connection**: Hardware simulator connects to WebSocket server
-2. **Commands**: ARTION sends routing commands (switch positions, signal aspects)
-3. **Actions**: Hardware simulator acts on commands (throws switches, changes signals)
-4. **Telemetry**: Hardware simulator sends back status (occupancy, switch positions)
-5. **Loop**: Process repeats every 100ms for real-time operation
+## Dashboard and API
 
-## System Architecture Shown in Demo
-
-```
-[ARTION Software]  ← WebSocket →  [Hardware Simulator]
-        │                           │
-   ┌────▼────┐               ┌─────▼─────┐
-   │GraphSAGE│               │  Switches │
-   │ (Delay  │               │ (Track    │
-   │  Pred)  │               │  Points)  │
-   └────┬────┘               └─────▲─────┘
-        │                           │
-   ┌────▼────┐               ┌─────▼─────┐
-   │   DQN   │               │Sensors & │
-   │(Routing)│               │ Signals   │
-   └────┬────┘               └─────▲─────┘
-        │                           │
-   [Prediction Loop]      [Real-time I/O]
-     (<100ms cycle)          (WebSocket)
-```
-
-## Technical Details
-
-### Real-time Performance:
-- Designed for <100ms cycle times (10Hz updates)
-- Async/await for non-blocking operations
-- Efficient binary serialization via JSON over WebSocket
-
-### Hardware Simulation Features:
-- **4 Track Switches**: Can be set to NORMAL or REVERSE positions
-- **4 Occupancy Sensors**: Simulate train presence with realistic dynamics
-- **3 Railway Signals**: GREEN/YELLOW/RED aspects
-- **Smart Simulation**: Traffic flow responds to switch positions
-- **Occasional Noise**: Simulates sensor unreliability (1% failure rate)
-- **Statistical Tracking**: Command counts, uptime, performance metrics
-
-### ARTION Software Features:
-- **Spatiotemporal GraphSAGE**: Predicts delay propagation using graph convolutions
-- **DQN Agent**: Learns optimal routing policies with experience replay
-- **WebSocket Server**: Low-latency bidirectional communication
-- **Modular Design**: Easy to replace simulator with actual hardware
-- **Fault Tolerance**: Graceful shutdown, error handling, recovery
-
-## Transitioning to Real Hardware
-To use with actual ESP32 hardware:
-1. Ensure ESP32 devices are running compatible firmware
-2. Connect them to the same network as the ARTION server
-3. Run without the `--simulator` flag: `python3 main.py`
-4. The WebSocket server will accept connections from real hardware
-5. No software changes needed - same interface works for both
+- `GET /dashboard` — live visual dashboard.
+- `GET /api/state` — current loop, prediction summary, last action, switch/sensor/signal telemetry and event stream.
+- `GET /` — service status.
+- `WS /ws/hardware` — local bidirectional simulator connection.
 
 ## Troubleshooting
-- **Connection refused**: Make sure both systems are running on same machine/network
-- **Port already in use**: Kill existing processes on port 8000
-- **Module not found**: Run `pip3 install -r requirements.txt` first
-- **No interaction**: Check that both systems show WebSocket connection messages
 
-## Saving Demo Output
-To save demo output for later review:
-```bash
-cd ~/arton_project/software
-python3 demo_artion.py > demo_output.txt 2>&1
-```
+- Install requirements inside the same Python environment used to run the demo.
+- If port `8000` is occupied, stop the old ARTON process before starting another.
+- Use `demo_artion.py` for a complete one-command run; do not launch another simulator at the same time.
+- PyTorch Geometric is optional. The pure-PyTorch GraphSAGE fallback should work without it.
 
-The demonstration shows how ARTION enables autonomous railway optimization with real-time hardware interaction - all running in simulation for safe testing and development!
+## Important limitations
+
+The inputs are synthetic and model weights are randomly initialized. Raw predictions do not represent calibrated delay minutes. The DQN is a demonstration policy, not a trained railway controller. Observed local loop durations are not a guaranteed performance target, and this prototype must not be used to control real railway infrastructure.
